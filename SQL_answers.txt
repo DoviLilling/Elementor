@@ -1,0 +1,38 @@
+1. Used analytic functions, so we will only do O(n).
+select data.employee_id
+      ,data.salary
+      ,data.diff_sal
+  from (select sal_ranks.*
+              ,sal_ranks.salary - lag(sal_ranks.salary) over (partition by sal_ranks.department_id order by sal_ranks.sal_rank) diff_sal
+          from (select e.*
+                      ,rank() over (partition by e.department_id order by e.salary desc) sal_rank
+                  from employees e
+               ) sal_ranks
+         where sal_ranks.sal_rank <= 2 -- this line _can_ be removed if all we care about is data, but will improve performance
+       ) data
+ where data.sal_rank = 1;
+ 
+ 2.
+ a. This is a solution for % per promotion
+ select promotion_code
+       ,sum(number_of_visitors) visitors
+       ,sum(sum(number_of_visitors)) over () total_visitors
+       ,sum(number_of_visitors) / sum(sum(number_of_visitors)) over () percent_visitors
+   from      site_visitors   sv
+   left join promotion_dates pd on (   sv.site = pd.site
+                                   and sv.date between pd.start_date and pd.end_date)
+group by promotion_code;
+
+b. This is a solution for % of all promotions together:
+select visits.visitors
+      ,visits.total_visitors
+      ,visits.percent_visitors
+  from (select promotion_code is not null is_promo
+              ,sum(number_of_visitors) visitors
+              ,sum(sum(number_of_visitors)) over () total_visitors
+              ,sum(number_of_visitors) / sum(sum(number_of_visitors)) over () percent_visitors
+          from      site_visitors   sv
+          left join promotion_dates pd on (   sv.site = pd.site
+                                          and sv.date between pd.start_date and pd.end_date)
+        group by case when promotion_code is not null then 'promo' else null end) visits
+ where is_promo;
